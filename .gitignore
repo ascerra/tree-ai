@@ -1,0 +1,10 @@
+// .gitignore
+/bin/
+*.log
+*.out
+*.exe
+*.test
+vendor/
+.history
+.venv
+.hf-cache/
