@@ -33,7 +33,7 @@ make install || {
 }
 
 # Run tree-ai
-./bin/tree-ai "$TARGET_PATH"
+#./bin/tree-ai "$TARGET_PATH"
 
 # Optionally clean up (comment out to persist install)
 # echo "🧹 Cleaning up..."

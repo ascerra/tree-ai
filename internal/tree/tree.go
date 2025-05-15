@@ -17,19 +17,24 @@ type node struct {
 	depth int
 }
 
-func CollectPaths(root string, maxDepth int, includeFiles bool) []node {
-	if maxDepth == -1 {
-		maxDepth = 0 // default: root contents only
-	}
-	ignoreSet := loadIgnoreFiles(root)
+func CollectPaths(root string, maxDepth int, includeFiles bool, includeDotfiles bool) []node {
 	var paths []node
+
 	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(root, path)
-		depth := len(strings.Split(rel, string(os.PathSeparator))) - 1
 
+		// Don't include the root itself
+		if path == root {
+			return nil
+		}
+
+		// Calculate relative depth
+		relPath, _ := filepath.Rel(root, path)
+		depth := len(strings.Split(relPath, string(os.PathSeparator)))
+
+		// Enforce max depth
 		if maxDepth >= 0 && depth > maxDepth {
 			if d.IsDir() {
 				return filepath.SkipDir
@@ -37,11 +42,8 @@ func CollectPaths(root string, maxDepth int, includeFiles bool) []node {
 			return nil
 		}
 
-		if rel == "." || ignoreSet[rel] {
-			return nil
-		}
-
-		if depth == 1 && strings.HasPrefix(filepath.Base(path), ".") {
+		// Skip dotfiles and dotdirs unless included
+		if !includeDotfiles && strings.HasPrefix(d.Name(), ".") {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -52,13 +54,17 @@ func CollectPaths(root string, maxDepth int, includeFiles bool) []node {
 		if statErr != nil {
 			return nil
 		}
+
 		if info.IsDir() || includeFiles {
 			paths = append(paths, node{path: path, isDir: info.IsDir(), depth: depth})
 		}
+
 		return nil
 	})
+
 	return paths
 }
+
 
 func loadIgnoreFiles(root string) map[string]bool {
 	ignoreSet := make(map[string]bool)
@@ -95,7 +101,7 @@ func max(a, b int) int {
 	return b
 }
 
-func PrintTreeWithPaths(paths []node, root, prefix string, noAI bool, model string, maxDepth int, endpoint string) {
+func PrintTreeWithPaths(paths []node, root, prefix string, noAI bool, model string, maxDepth int, endpoint string, promptInstruction string) {
 	sort.Slice(paths, func(i, j int) bool {
 		return paths[i].path < paths[j].path
 	})
@@ -124,7 +130,7 @@ func PrintTreeWithPaths(paths []node, root, prefix string, noAI bool, model stri
 		desc := ""
 		if !noAI {
 			if _, err := os.Stat(n.path); err == nil {
-				desc = ai.Describe(n.path, n.isDir, model, endpoint)
+				desc = ai.Describe(n.path, n.isDir, model, endpoint, promptInstruction)
 			}
 		}
 
