@@ -33,14 +33,9 @@ make deps
 ```bash
 git clone https://github.com/your-org/tree-ai.git
 cd tree-ai
-make build
+make install
 ```
 
-To install dependencies for the local Python-based runner:
-
-```bash
-make deps
-```
 
 ## Usage
 
