@@ -1,4 +1,3 @@
-// internal/ai/describe.go
 package ai
 
 import (
@@ -8,10 +7,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
-	"os/exec"
 )
 
 func ModelIsCached() bool {
@@ -29,15 +28,29 @@ func SetTotalFiles(n int) {
 
 var Verbose bool = false
 
-func Describe(path string, isDir bool, model string, userEndpoint string) string {
+func Describe(path string, isDir bool, model, userEndpoint, userInstruction string) string {
+	itemType := map[bool]string{true: "directory", false: "file"}[isDir]
 	target := filepath.Base(path)
-	itemType := "file"
-	if isDir {
-		itemType = "directory"
+	content := collectContent(path, isDir)
+	
+	instruction := userInstruction
+	if instruction == "" {
+		instruction = fmt.Sprintf("In 1 sentence, explain the purpose of this %s **as it relates to the whole project**.\nRespond only with the explanation. Do not repeat the prompt.", itemType)
 	}
-	prompt := fmt.Sprintf("For %s named '%s' read everything underneath it and tell me a specific detail that is most important as it relates to this entire repo. No more than 100 characters", itemType, target)
+	
+	prompt := fmt.Sprintf(`You are a senior developer helping onboard a new teammate.
+	
+	This is a %s named "%s". Below are its contents:
+	---
+	%s
+	---
+	
+	%s`, itemType, target, content, instruction)
 
-	// Use custom endpoint if provided, otherwise default Granite model
+	if Verbose {
+		fmt.Fprintf(os.Stderr, "[tree-ai] prompt for %s:\n%s\n", path, prompt)
+	}
+
 	endpoint := userEndpoint
 	if endpoint == "" {
 		endpoint = "https://granite-3-1-8b-instruct-w4a16-maas-apicast-production.apps.prod.rhoai.rh-aiservices-bu.com/v1/completions"
@@ -46,10 +59,6 @@ func Describe(path string, isDir bool, model string, userEndpoint string) string
 
 	if !isEndpointAvailable(healthURL) {
 		return fallback(target, isDir, model)
-	}
-
-	if Verbose {
-		fmt.Fprintln(os.Stderr, "[tree-ai] querying endpoint...")
 	}
 
 	payload := fmt.Sprintf(`{
@@ -101,7 +110,7 @@ func Describe(path string, isDir bool, model string, userEndpoint string) string
 		return fallback(target, isDir, model)
 	}
 
-	return summarizeToOneLine(result.Choices[0].Text)
+	return cleanModelResponse(prompt, result.Choices[0].Text)
 }
 
 func fallback(target string, isDir bool, model string) string {
@@ -122,7 +131,6 @@ func fallback(target string, isDir bool, model string) string {
 	}
 	return fmt.Sprintf("(File handling %s functionality using model %s)", strings.TrimSuffix(target, filepath.Ext(target)), model)
 }
-
 
 func summarizeToOneLine(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")
@@ -161,4 +169,98 @@ func isEndpointAvailable(url string) bool {
 	}
 
 	return true
+}
+
+func collectContent(path string, isDir bool) string {
+	var builder strings.Builder
+	const maxTotalBytes = 6000
+
+	addFile := func(p string) {
+		if isBinary(p) {
+			if Verbose {
+				fmt.Fprintf(os.Stderr, "[tree-ai] skipping binary file: %s\n", p)
+			}
+			return
+		}
+	
+		data, err := os.ReadFile(p)
+		if err != nil || len(data) == 0 {
+			return
+		}
+	
+		builder.WriteString(fmt.Sprintf("\n--- %s ---\n", filepath.Base(p)))
+		builder.Write(data)
+
+		if builder.Len() > maxTotalBytes {
+			builder.WriteString("\n... [truncated]")
+		}
+	}
+
+	if !isDir {
+		addFile(path)
+	} else {
+		filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			addFile(p)
+			if builder.Len() > maxTotalBytes {
+				return io.EOF
+			}
+			return nil
+		})
+	}
+
+	result := builder.String()
+	if len(result) > maxTotalBytes {
+		result = result[:maxTotalBytes] + "\n... [truncated]"
+	}
+	return result
+}
+
+func cleanModelResponse(prompt, rawText string) string {
+	text := strings.TrimSpace(rawText)
+
+	// Remove verbatim prompt if included
+	if strings.HasPrefix(text, prompt) {
+		text = strings.TrimPrefix(text, prompt)
+	}
+
+	// Heuristic: find start of real answer
+	starts := []string{"The ", "This ", "A ", "An ", "In ", "It ", "There ", "Directory ", "File "}
+	foundIdx := -1
+	for _, s := range starts {
+		idx := strings.Index(text, s)
+		if idx != -1 && (foundIdx == -1 || idx < foundIdx) {
+			foundIdx = idx
+		}
+	}
+
+	if foundIdx != -1 {
+		text = text[foundIdx:]
+	}
+
+	text = strings.TrimSpace(text)
+	return summarizeToOneLine(text)
+}
+
+func isBinary(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	buf := make([]byte, 800)
+	n, _ := f.Read(buf)
+	if n == 0 {
+		return false
+	}
+
+	for _, b := range buf[:n] {
+		if b == 0 { // null byte = likely binary
+			return true
+		}
+	}
+	return false
 }

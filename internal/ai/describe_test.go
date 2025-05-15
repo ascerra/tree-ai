@@ -1,15 +1,17 @@
-// internal/ai/describe_test.go
 package ai
 
-import (
-	"testing"
-)
+import "testing"
 
-func TestDescribe(t *testing.T) {
-	if got := Describe("/tmp/config.yaml", false); got == "" {
-		t.Errorf("expected description for file, got empty string")
+func TestDescribeFallback_File(t *testing.T) {
+	desc := Describe("go.sum", false, "mock-model", "", "")
+	if desc == "" {
+		t.Fatal("expected a non-empty description for file fallback")
 	}
-	if got := Describe("/tmp/app", true); got == "" {
-		t.Errorf("expected description for directory, got empty string")
+}
+
+func TestDescribeFallback_Dir(t *testing.T) {
+	desc := Describe(".", true, "mock-model", "", "")
+	if desc == "" {
+		t.Fatal("expected a non-empty description for directory fallback")
 	}
 }

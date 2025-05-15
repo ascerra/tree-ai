@@ -2,20 +2,32 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🧰 Set up Go
+        uses: actions/setup-go@v4
         with:
-          go-version: 1.20
-      - run: go mod tidy
-      - run: make fmt
-      - run: make test
-      - run: make cover
+          go-version: '1.20'
+
+      - name: 🧪 Show Go version (debug)
+        run: go version
+
+      - name: 🧹 Run go mod tidy
+        run: go mod tidy
+
+      - name: 🔧 Verify no changes after tidy
+        run: |
+          git diff --exit-code || (echo '❌ go mod tidy modified go.mod/go.sum. Please run it locally.' && exit 1)
+
+      - name: ✅ Run tests
+        run: make test

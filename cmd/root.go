@@ -1,4 +1,3 @@
-// cmd/root.go
 package cmd
 
 import (
@@ -11,11 +10,14 @@ import (
 )
 
 var (
-	noAI         bool
-	model        string
-	maxDepth     int
-	includeFiles bool
-	endpoint     string
+	noAI              bool
+	model             string
+	maxDepth          int
+	includeFiles      bool
+	endpoint          string
+	verbose           bool
+	includeDotfiles   bool
+	promptInstruction string
 )
 
 var rootCmd = &cobra.Command{
@@ -26,19 +28,28 @@ var rootCmd = &cobra.Command{
 		if len(args) > 0 {
 			dir = args[0]
 		}
-		paths := tree.CollectPaths(dir, maxDepth, includeFiles)
+
+		// Pass verbosity to AI layer
+		ai.Verbose = verbose
+
+		// Collect tree paths
+		paths := tree.CollectPaths(dir, maxDepth, includeFiles, includeDotfiles)
 		ai.SetTotalFiles(len(paths))
-		tree.PrintTreeWithPaths(paths, dir, "", noAI, model, maxDepth, endpoint)
+
+		// Render tree with AI summaries
+		tree.PrintTreeWithPaths(paths, dir, "", noAI, model, maxDepth, endpoint, promptInstruction)
 	},
 }
 
 func init() {
 	rootCmd.Flags().BoolVar(&noAI, "no-ai", false, "Disable AI-generated descriptions")
 	rootCmd.Flags().StringVar(&model, "model", "granite-3-1-8b-instruct-w4a16", "Model to use for AI descriptions")
-	rootCmd.Flags().IntVar(&maxDepth, "max-depth", -1, "Limit the depth of the directory tree (default: 0 — immediate children only; use -1 for unlimited)")
+	rootCmd.Flags().IntVar(&maxDepth, "max-depth", -1, "Limit the depth of the directory tree (default: -1 for unlimited)")
 	rootCmd.Flags().BoolVar(&includeFiles, "include-files", true, "Include files in the output (default: true)")
-	rootCmd.Flags().BoolVar(&ai.Verbose, "verbose", false, "Enable verbose logging (default: off)")
 	rootCmd.Flags().StringVar(&endpoint, "endpoint", "", "Custom model endpoint URL (overrides default Granite endpoint)")
+	rootCmd.Flags().BoolVar(&verbose, "verbose", false, "Enable verbose logging (default: off)")
+	rootCmd.Flags().BoolVar(&includeDotfiles, "include-dotfiles", false, "Include dotfiles and dotdirs like `tree -a`")
+	rootCmd.Flags().StringVar(&promptInstruction, "prompt-instruction", "", "Custom prompt instruction to append after the file/directory contents")
 }
 
 func Execute() {
