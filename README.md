@@ -17,7 +17,7 @@
 You can install the latest release directly:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/ascerra/tree-ai/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/ascerra/tree-ai/main/install-and-run.sh | bash -s 
 ```
 
 This will download the latest binary to your local `bin/` folder and make it executable.
