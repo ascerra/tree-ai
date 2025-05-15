@@ -34,8 +34,9 @@ make deps
 git clone https://github.com/your-org/tree-ai.git
 cd tree-ai
 make install
+source .venv/bin/activate
+export TREE_AI_API_KEY=<API key for default model (internal only)>
 ```
-
 
 ## Usage
 
@@ -58,7 +59,8 @@ bin/tree-ai ./ --include-dotfiles
 Use a specific remote model and endpoint:
 
 ```bash
-bin/tree-ai ../incubator-devlake \
+export TREE_AI_API_KEY=<API key for your ai model>
+bin/tree-ai ./ \
   --endpoint=https://granite-8b-code-instruct-maas-apicast-production.apps.prod.rhoai.rh-aiservices-bu.com:443/v1/completions \
   --model=granite-8b-code-instruct-128k
 ```
