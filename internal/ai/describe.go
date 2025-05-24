@@ -22,6 +22,7 @@ func SetTotalFiles(n int) {
 }
 
 var Verbose bool = false
+var TruncateDescriptions bool = true
 
 func Describe(path string, isDir bool, model, userEndpoint, userInstruction string) string {
 	itemType := map[bool]string{true: "directory", false: "file"}[isDir]
@@ -122,17 +123,21 @@ func cleanModelResponse(rawText string, target string, isDir bool) string {
 		text = original
 	}
 
-	return summarizeToOneLine(text)
+	if TruncateDescriptions {
+		return summarizeToOneLine(text)
+	}
+	return text
 }
 
 func formatFinalResponse(label string, desc string, isDir bool) string {
-	arrow := "⇒"
+	arrow := "\033[38;5;208m➤\033[0m"
 	desc = strings.TrimSpace(desc)
 	if isDir {
 		desc = strings.TrimPrefix(desc, ". ")
 	}
 	return fmt.Sprintf("%s %s", arrow, desc)
 }
+
 
 func fallback(target string, isDir bool, model string, fullPrompt string) string {
 	cmd := exec.Command(".venv/bin/python", "model/granite_infer.py", "--prompt", fullPrompt)
@@ -205,9 +210,23 @@ func collectContent(path string, isDir bool) string {
 
 func summarizeToOneLine(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.Join(strings.Fields(s), " ")
-	return strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, "\r", " ")
+	s = strings.Join(strings.Fields(s), " ") // collapse multiple spaces
+	s = strings.TrimSpace(s)
+
+	const maxLen = 120
+	if len(s) > maxLen {
+		s = s[:maxLen]
+		// Optionally trim mid-word if needed
+		if i := strings.LastIndex(s, " "); i > 0 {
+			s = s[:i]
+		}
+		s += "..."
+	}
+
+	return s
 }
+
 
 func isBinary(path string) bool {
 	f, err := os.Open(path)

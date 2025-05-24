@@ -1,3 +1,4 @@
+// ✅ Updated root.go (truncate default false, --truncate sets it true)
 package cmd
 
 import (
@@ -18,25 +19,24 @@ var (
 	verbose           bool
 	includeDotfiles   bool
 	promptInstruction string
+	truncate          bool
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "tree-ai",
 	Short: "AI-enhanced tree command",
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Fprintln(os.Stdout, "⚠️  AI-generated summaries may be inaccurate or outdated. Always verify important details.")
 		dir := "."
 		if len(args) > 0 {
 			dir = args[0]
 		}
 
-		// Pass verbosity to AI layer
 		ai.Verbose = verbose
+		ai.TruncateDescriptions = truncate
 
-		// Collect tree paths
 		paths := tree.CollectPaths(dir, maxDepth, includeFiles, includeDotfiles)
 		ai.SetTotalFiles(len(paths))
-
-		// Render tree with AI summaries
 		tree.PrintTreeWithPaths(paths, dir, "", noAI, model, maxDepth, endpoint, promptInstruction)
 	},
 }
@@ -50,6 +50,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&verbose, "verbose", false, "Enable verbose logging (default: off)")
 	rootCmd.Flags().BoolVar(&includeDotfiles, "include-dotfiles", false, "Include dotfiles and dotdirs like `tree -a`")
 	rootCmd.Flags().StringVar(&promptInstruction, "prompt-instruction", "", "Custom prompt instruction to append after the file/directory contents")
+	rootCmd.Flags().BoolVar(&truncate, "truncate", false, "Truncate AI descriptions to one line (set true to enable)")
 }
 
 func Execute() {

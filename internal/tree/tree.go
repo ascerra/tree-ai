@@ -117,13 +117,9 @@ func PrintTreeWithPaths(paths []node, root, prefix string, noAI bool, model stri
 			prefix += "├── "
 		}
 
-		var icon, color string
+		color := "\033[1;32m" // green for files by default
 		if n.isDir {
-			icon = "💼"
-			color = "\033[1;34m"
-		} else {
-			icon = "📄"
-			color = "\033[1;32m"
+			color = "\033[1;34m" // blue for directories
 		}
 		reset := "\033[0m"
 
@@ -134,6 +130,6 @@ func PrintTreeWithPaths(paths []node, root, prefix string, noAI bool, model stri
 			}
 		}
 
-		fmt.Printf("%s%s%s %s%s %s\n", prefix, color, icon, base, reset, desc)
+		fmt.Printf("%s%s%s%s %s\n", prefix, color, base, reset, desc)
 	}
 }
