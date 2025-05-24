@@ -9,15 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
-
-func ModelIsCached() bool {
-	cachePath := filepath.Join(".hf-cache", "models--ibm-granite")
-	entries, err := os.ReadDir(cachePath)
-	return err == nil && len(entries) > 0
-}
 
 var fileCounter int
 var totalFiles int
@@ -32,20 +27,17 @@ func Describe(path string, isDir bool, model, userEndpoint, userInstruction stri
 	itemType := map[bool]string{true: "directory", false: "file"}[isDir]
 	target := filepath.Base(path)
 	content := collectContent(path, isDir)
-	
+
 	instruction := userInstruction
 	if instruction == "" {
-		instruction = fmt.Sprintf("In 2 sentence, explain the purpose of this %s **as it relates to the whole project**.\nRespond only with the explanation. Do not repeat the prompt.", itemType)
+		instruction = fmt.Sprintf("In 1 sentence, explain the purpose of this %s **as it relates to the whole project**. Respond only with the explanation. Avoid repeating the file name or type.", itemType)
 	}
-	
-	prompt := fmt.Sprintf(`You are a senior developer helping onboard a new teammate.
-	
-	This is a %s named "%s". Below are its contents:
-	---
-	%s
-	---
-	
-	%s`, itemType, target, content, instruction)
+
+	prompt := fmt.Sprintf(`You are a senior developer helping onboard a new teammate. You are summarizing project components.
+This is a %s named "%s". Its contents are:
+%s
+
+%s`, itemType, target, content, instruction)
 
 	if Verbose {
 		fmt.Fprintf(os.Stderr, "[tree-ai] prompt for %s:\n%s\n", path, prompt)
@@ -53,12 +45,22 @@ func Describe(path string, isDir bool, model, userEndpoint, userInstruction stri
 
 	endpoint := userEndpoint
 	if endpoint == "" {
-		endpoint = "https://granite-3-1-8b-instruct-w4a16-maas-apicast-production.apps.prod.rhoai.rh-aiservices-bu.com/v1/completions"
+		endpoint = os.Getenv("TREE_AI_ENDPOINT")
 	}
-	healthURL := strings.Replace(endpoint, "/v1/completions", "/health", 1)
 
+	if endpoint == "" {
+		if Verbose {
+			fmt.Fprintln(os.Stderr, "[tree-ai] no remote endpoint configured, falling back to local model.")
+		}
+		return formatFinalResponse(target, cleanModelResponse(fallback(target, isDir, model, prompt), target, isDir), isDir)
+	}
+
+	healthURL := strings.Replace(endpoint, "/v1/completions", "/health", 1)
 	if !isEndpointAvailable(healthURL) {
-		return fallback(target, isDir, model)
+		if Verbose {
+			fmt.Fprintf(os.Stderr, "[tree-ai] remote endpoint %s not available, falling back to local model.\n", endpoint)
+		}
+		return formatFinalResponse(target, cleanModelResponse(fallback(target, isDir, model, prompt), target, isDir), isDir)
 	}
 
 	payload := fmt.Sprintf(`{
@@ -70,10 +72,7 @@ func Describe(path string, isDir bool, model, userEndpoint, userInstruction stri
 
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer([]byte(payload)))
 	if err != nil {
-		if Verbose {
-			fmt.Fprintf(os.Stderr, "[tree-ai] request creation failed: %v\n", err)
-		}
-		return fallback(target, isDir, model)
+		return formatFinalResponse(target, cleanModelResponse(fallback(target, isDir, model, prompt), target, isDir), isDir)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if key := os.Getenv("TREE_AI_API_KEY"); key != "" {
@@ -82,19 +81,13 @@ func Describe(path string, isDir bool, model, userEndpoint, userInstruction stri
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		if Verbose {
-			fmt.Fprintf(os.Stderr, "[tree-ai] request failed: %v\n", err)
-		}
-		return fallback(target, isDir, model)
+		return formatFinalResponse(target, cleanModelResponse(fallback(target, isDir, model, prompt), target, isDir), isDir)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		if Verbose {
-			fmt.Fprintf(os.Stderr, "[tree-ai] read failed: %v\n", err)
-		}
-		return fallback(target, isDir, model)
+		return formatFinalResponse(target, cleanModelResponse(fallback(target, isDir, model, prompt), target, isDir), isDir)
 	}
 
 	var result struct {
@@ -104,71 +97,71 @@ func Describe(path string, isDir bool, model, userEndpoint, userInstruction stri
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil || len(result.Choices) == 0 {
-		if Verbose {
-			fmt.Fprintf(os.Stderr, "[tree-ai] failed to parse response: %v\n", err)
-		}
-		return fallback(target, isDir, model)
+		return formatFinalResponse(target, cleanModelResponse(fallback(target, isDir, model, prompt), target, isDir), isDir)
 	}
 
-	return cleanModelResponse(prompt, result.Choices[0].Text)
+	return formatFinalResponse(target, cleanModelResponse(result.Choices[0].Text, target, isDir), isDir)
 }
 
-func fallback(target string, isDir bool, model string) string {
-	prompt := fmt.Sprintf("For %s named '%s' read everything underneath it and tell me a specific detail that is most important as it relates to this entire repo. No more than 100 characters",
-		map[bool]string{true: "directory", false: "file"}[isDir], target)
+func cleanModelResponse(rawText string, target string, isDir bool) string {
+	original := strings.TrimSpace(rawText)
+	text := original
 
-	cmd := exec.Command(".venv/bin/python", "model/granite_infer.py", "--prompt", prompt)
+	pattern := regexp.MustCompile(`(?i)^((this|the)\s+)?(.*\b` + regexp.QuoteMeta(target) + `\b.*?)\s*(file|directory|script|module|document)?\s*(,|is|provides|serves|:|-)*\s*`)
+	temp := pattern.ReplaceAllString(text, "")
+	if strings.TrimSpace(temp) != "" {
+		text = temp
+	}
+
+	if i := strings.Index(text, "."); i > 5 {
+		text = text[:i+1]
+	}
+
+	text = strings.TrimLeft(text, "\"',:; ")
+	if strings.TrimSpace(text) == "" {
+		text = original
+	}
+
+	return summarizeToOneLine(text)
+}
+
+func formatFinalResponse(label string, desc string, isDir bool) string {
+	arrow := "⇒"
+	desc = strings.TrimSpace(desc)
+	if isDir {
+		desc = strings.TrimPrefix(desc, ". ")
+	}
+	return fmt.Sprintf("%s %s", arrow, desc)
+}
+
+func fallback(target string, isDir bool, model string, fullPrompt string) string {
+	cmd := exec.Command(".venv/bin/python", "model/granite_infer.py", "--prompt", fullPrompt)
 	cmd.Env = append(os.Environ(), "TRANSFORMERS_CACHE=.hf-cache")
 	output, err := cmd.Output()
-
 	if err == nil && len(output) > 0 {
-		return summarizeToOneLine(string(output))
+		return string(output)
 	}
-
-	// true last-resort fallback
 	if isDir {
-		return fmt.Sprintf("(Directory for managing %s using model %s)", target, model)
+		return "Internal directory for project logic."
 	}
-	return fmt.Sprintf("(File handling %s functionality using model %s)", strings.TrimSuffix(target, filepath.Ext(target)), model)
-}
-
-func summarizeToOneLine(s string) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.Join(strings.Fields(s), " ")
-	return strings.TrimSpace(s)
+	return "Internal project file."
 }
 
 func isEndpointAvailable(url string) bool {
 	client := http.Client{Timeout: 2 * time.Second}
-
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		if Verbose {
-			fmt.Fprintf(os.Stderr, "[tree-ai] health check request creation failed: %v\n", err)
-		}
 		return false
 	}
 	if key := os.Getenv("TREE_AI_API_KEY"); key != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
 	}
-
 	resp, err := client.Do(req)
 	if err != nil {
-		if Verbose {
-			fmt.Fprintf(os.Stderr, "[tree-ai] health check failed: %v\n", err)
-		}
 		return false
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
-		if Verbose {
-			fmt.Fprintf(os.Stderr, "[tree-ai] health check returned status: %s\n", resp.Status)
-		}
-		return false
-	}
-
-	return true
+	return resp.StatusCode >= 200 && resp.StatusCode < 400
 }
 
 func collectContent(path string, isDir bool) string {
@@ -177,25 +170,18 @@ func collectContent(path string, isDir bool) string {
 
 	addFile := func(p string) {
 		if isBinary(p) {
-			if Verbose {
-				fmt.Fprintf(os.Stderr, "[tree-ai] skipping binary file: %s\n", p)
-			}
 			return
 		}
-	
 		data, err := os.ReadFile(p)
 		if err != nil || len(data) == 0 {
 			return
 		}
-	
 		builder.WriteString(fmt.Sprintf("\n--- %s ---\n", filepath.Base(p)))
 		builder.Write(data)
-
 		if builder.Len() > maxTotalBytes {
 			builder.WriteString("\n... [truncated]")
 		}
 	}
-
 	if !isDir {
 		addFile(path)
 	} else {
@@ -210,7 +196,6 @@ func collectContent(path string, isDir bool) string {
 			return nil
 		})
 	}
-
 	result := builder.String()
 	if len(result) > maxTotalBytes {
 		result = result[:maxTotalBytes] + "\n... [truncated]"
@@ -218,30 +203,10 @@ func collectContent(path string, isDir bool) string {
 	return result
 }
 
-func cleanModelResponse(prompt, rawText string) string {
-	text := strings.TrimSpace(rawText)
-
-	// Remove verbatim prompt if included
-	if strings.HasPrefix(text, prompt) {
-		text = strings.TrimPrefix(text, prompt)
-	}
-
-	// Heuristic: find start of real answer
-	starts := []string{"The ", "This ", "A ", "An ", "In ", "It ", "There ", "Directory ", "File "}
-	foundIdx := -1
-	for _, s := range starts {
-		idx := strings.Index(text, s)
-		if idx != -1 && (foundIdx == -1 || idx < foundIdx) {
-			foundIdx = idx
-		}
-	}
-
-	if foundIdx != -1 {
-		text = text[foundIdx:]
-	}
-
-	text = strings.TrimSpace(text)
-	return summarizeToOneLine(text)
+func summarizeToOneLine(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.Join(strings.Fields(s), " ")
+	return strings.TrimSpace(s)
 }
 
 func isBinary(path string) bool {
@@ -256,9 +221,8 @@ func isBinary(path string) bool {
 	if n == 0 {
 		return false
 	}
-
 	for _, b := range buf[:n] {
-		if b == 0 { // null byte = likely binary
+		if b == 0 {
 			return true
 		}
 	}
