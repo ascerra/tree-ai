@@ -6,69 +6,57 @@
 
 - 🧠 AI-generated summaries of files and directories
 - 🔍 Fully recursive traversal with `--max-depth`
-- 🧰 Support for both local and remote IBM Granite models
+- 📝 Customizable prompt instructions `--prompt`
+- ✂️ Can strictly enforce one line with `--truncate`
+- 🧰 Support for both local and remote AI models
 - 📦 Works offline if model is cached
-- 📝 Customizable prompt instructions
 
 ## Installation
 
-### 🚀 For Users (via curl)
-
-You can install the latest release directly:
-
-```bash
-curl -sSL https://raw.githubusercontent.com/ascerra/tree-ai/main/install-and-run.sh | bash -s 
-```
-
-This will download the latest binary to your local `bin/` folder and make it executable.
-
-To install dependencies for the local Python-based runner:
-
-```bash
-make deps
-```
-
 ### 🔧 For Developers (from source)
+Clone the repository and install from source:
 
 ```bash
 git clone https://github.com/your-org/tree-ai.git
 cd tree-ai
 make install
 source .venv/bin/activate
-export TREE_AI_API_KEY=<API key for default model (internal only)>
 ```
 
 ## Usage
 
+To use your own model, you must export your API key and provide both `--model` and `--endpoint`:
+
 ```bash
-bin/tree-ai ./
+export TREE_AI_API_KEY=<your-api-key>
+bin/tree-ai ./ \
+  --endpoint=https://your-model-endpoint.example.com/v1/completions \
+  --model=your-model-id
 ```
 
-Show up to 3 levels deep:
+Show up levels based on preference:
 
 ```bash
 bin/tree-ai ./ --max-depth=3
 ```
 
+Use a custom instruction for summarization with `--prompt`:
+
+```bash
+bin/tree-ai ./ --prompt "Summarize what this file contributes to the project."
+```
+
+Use `--truncate` to keep summaries to one line (useful for compact output):
+
+```bash
+bin/tree-ai ./ --truncate
+```
+
+
 Include hidden files and directories (like `tree -a`):
 
 ```bash
 bin/tree-ai ./ --include-dotfiles
-```
-
-Use a specific remote model and endpoint:
-
-```bash
-export TREE_AI_API_KEY=<API key for your ai model>
-bin/tree-ai ./ \
-  --endpoint=https://granite-8b-code-instruct-maas-apicast-production.apps.prod.rhoai.rh-aiservices-bu.com:443/v1/completions \
-  --model=granite-8b-code-instruct-128k
-```
-
-Use a custom instruction for summarization:
-
-```bash
-bin/tree-ai ./ --prompt-instruction "Summarize what this file contributes to the project."
 ```
 
 Enable verbose output for debugging:
@@ -80,14 +68,15 @@ bin/tree-ai ./ --verbose
 ## Output Example
 
 ```bash
-~/development/AI/project-tree-ai/tree-ai ❯ bin/tree-ai ./ --max-depth=2
-└── 📄 LICENSE      This file, "LICENSE", is a legal notice that grants permission to use, modify, distribute, and sublicense the project's software, adhering to the MIT License terms, while limiting liability for any claims or damages.
-└── 📄 Makefile     This Makefile outlines the build, testing, and installation processes for the "tree-ai" project, including its main Go binary, Python dependencies, and the "Granite" model runner.
-└── 📄 README.md    The purpose of this file is to provide comprehensive documentation for installing, running, and understanding the structure and functionality of the `tree-ai` project.
-└── 💼 bin          This directory contains compiled binaries used for local execution and testing.
-└── 💼 cmd          This directory contains the Cobra-based CLI entrypoint logic.
-└── 💼 internal     Internal Go packages for AI integration and tree traversal logic.
-└── 📄 main.go      Main entry point for the tree-ai command-line interface.
+❯ bin/tree-ai ./ --endpoint="<model endpoint>" --truncate          
+⚠️  AI-generated summaries may be inaccurate or outdated. Always verify important details.
+└── LICENSE ➤ grants users permission to use, modify, and distribute the project's software
+└── Makefile ➤ as a build and testing automation tool for the tree-ai project
+└── README.md ➤ This file serves as the project's documentation and user guide
+├── bin ➤ serves as a centralized location for executable scripts and utilities
+│   └── tree-ai ➤ outlines the architecture and details for integrating an AI model
+├── cmd ➤ houses the command-line interface (CLI) implementation for the project
+│   └── root.go ➤ The purpose of this file is to define the command-line interface
 ```
 
 ## Testing
