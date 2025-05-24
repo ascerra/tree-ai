@@ -35,7 +35,7 @@ func Describe(path string, isDir bool, model, userEndpoint, userInstruction stri
 	
 	instruction := userInstruction
 	if instruction == "" {
-		instruction = fmt.Sprintf("In 1 sentence, explain the purpose of this %s **as it relates to the whole project**.\nRespond only with the explanation. Do not repeat the prompt.", itemType)
+		instruction = fmt.Sprintf("In 2 sentence, explain the purpose of this %s **as it relates to the whole project**.\nRespond only with the explanation. Do not repeat the prompt.", itemType)
 	}
 	
 	prompt := fmt.Sprintf(`You are a senior developer helping onboard a new teammate.
