@@ -43,13 +43,13 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().BoolVar(&noAI, "no-ai", false, "Disable AI-generated descriptions")
-	rootCmd.Flags().StringVar(&model, "model", "granite-3-1-8b-instruct-w4a16", "Model to use for AI descriptions")
+	rootCmd.Flags().StringVar(&model, "model", "", "Model to use for AI descriptions (required with --endpoint)")	
 	rootCmd.Flags().IntVar(&maxDepth, "max-depth", -1, "Limit the depth of the directory tree (default: -1 for unlimited)")
 	rootCmd.Flags().BoolVar(&includeFiles, "include-files", true, "Include files in the output (default: true)")
 	rootCmd.Flags().StringVar(&endpoint, "endpoint", "", "Custom model endpoint URL (overrides default Granite endpoint)")
 	rootCmd.Flags().BoolVar(&verbose, "verbose", false, "Enable verbose logging (default: off)")
 	rootCmd.Flags().BoolVar(&includeDotfiles, "include-dotfiles", false, "Include dotfiles and dotdirs like `tree -a`")
-	rootCmd.Flags().StringVar(&promptInstruction, "prompt-instruction", "", "Custom prompt instruction to append after the file/directory contents")
+	rootCmd.Flags().StringVar(&promptInstruction, "prompt", "", "Custom prompt instruction to append after the file/directory contents")
 	rootCmd.Flags().BoolVar(&truncate, "truncate", false, "Truncate AI descriptions to one line (set true to enable)")
 }
 

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+# Prevent running on merge, squash, or fixup commits
+COMMIT_MSG_FILE=".git/COMMIT_EDITMSG"
+
+# If the commit message is fixup! or squash! or Merge, exit cleanly
+if grep -qE '^(fixup!|squash!|Merge)' "$COMMIT_MSG_FILE"; then
+  exit 0
+fi
+
+# Define the trailer to add
+TRAILER="Assisted-by: < Cursor/Gemini etc >"
+
+# Add the trailer if not already present
+if ! grep -qF "$TRAILER" "$COMMIT_MSG_FILE"; then
+  git interpret-trailers --in-place --trailer "$TRAILER" "$COMMIT_MSG_FILE"
+fi
+
