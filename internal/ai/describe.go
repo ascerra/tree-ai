@@ -41,14 +41,15 @@ func Describe(path string, isDir bool, model, userEndpoint, userInstruction stri
 
 	instruction := userInstruction
 	if instruction == "" {
-		instruction = fmt.Sprintf("In 1 sentence, explain the purpose of this %s **as it relates to the whole project**. Respond only with the explanation. Avoid repeating the file name or type.", itemType)
+		instruction = fmt.Sprintf("The following is a log file. Analyze it and return the most likely error or failure message along with a brief explanation of what likely went wrong. Focus on errors, exceptions, or timeouts. Ignore routine startup logs or downloads. Show examples of issues and describe them", itemType)
 	}
 
-	prompt := fmt.Sprintf(`You are a senior developer helping onboard a new teammate. You are summarizing project components.
-This is a %s named "%s". Its contents are:
-%s
-
-%s`, itemType, target, content, instruction)
+	prompt := fmt.Sprintf(`You are a senior developer investigating a system failure.
+	This is a log file named "%s". Its contents are:
+	%s
+	
+	%s`, target, content, instruction)
+	
 
 	if Verbose {
 		fmt.Fprintf(os.Stderr, "[tree-ai] prompt for %s:\n%s\n", path, prompt)
@@ -315,7 +316,7 @@ func isEndpointAvailable(url string) bool {
 
 func collectContent(path string, isDir bool) string {
 	var builder strings.Builder
-	const maxTotalBytes = 6000
+	const maxTotalBytes = 190000
 
 	addFile := func(p string) {
 		if isBinary(p) {
