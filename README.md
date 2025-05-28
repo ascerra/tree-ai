@@ -69,7 +69,7 @@ bin/tree-ai ./ --verbose
 
 ```bash
 ❯ bin/tree-ai ./ --endpoint="<model endpoint>" --truncate          
-⚠️  AI-generated summaries may be inaccurate or outdated. Always verify important details.
+⚠️  AI-generated summaries may be inaccurate or outdated.
 └── LICENSE ➤ grants users permission to use, modify, and distribute the project's software
 └── Makefile ➤ as a build and testing automation tool for the tree-ai project
 └── README.md ➤ This file serves as the project's documentation and user guide

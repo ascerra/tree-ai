@@ -26,7 +26,7 @@ setup-python:
 	python3 -m venv .venv && \
 	source .venv/bin/activate && \
 	pip install --upgrade pip && \
-	pip install torch transformers
+	pip install torch transformers accelerate
 
 build-granite:
 	go build -o $(GRANITE_RUNNER) model/granite-runner.go
