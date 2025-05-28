@@ -26,7 +26,7 @@ var rootCmd = &cobra.Command{
 	Use:   "tree-ai",
 	Short: "AI-enhanced tree command",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Fprintln(os.Stdout, "⚠️  AI-generated summaries may be inaccurate or outdated. Always verify important details.")
+		fmt.Fprintln(os.Stdout, "⚠️  AI-generated summaries may be inaccurate or outdated.")
 		dir := "."
 		if len(args) > 0 {
 			dir = args[0]
