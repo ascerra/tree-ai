@@ -28,7 +28,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Fprintln(os.Stdout, "⚠️  AI-generated summaries may be inaccurate or outdated.")
 		dir := "."
-		if len(args) > 0 {
+		if len(args) > 1 {
 			dir = args[0]
 		}
 
